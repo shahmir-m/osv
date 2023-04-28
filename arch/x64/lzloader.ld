@@ -31,4 +31,7 @@ SECTIONS
     .debug_weaknames 0 : { *(.debug_weaknames) }
     .gdb_index 0 : { *(.gdb_index) }
     .comment : { *(.comment) }
-} ENTRY(uncompress_loader)
+} 
+ENTRY(_start)
+ENTRY(uncompress_loader)
+

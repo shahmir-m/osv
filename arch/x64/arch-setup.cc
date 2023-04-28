@@ -104,10 +104,39 @@ void * __attribute__((section (".start32_from_vmlinuz_address"))) start32_from_v
 
 void arch_setup_free_memory()
 {
+    
     static ulong edata, edata_phys;
     asm ("movl $.edata, %0" : "=rm"(edata));
     edata_phys = edata - OSV_KERNEL_VM_SHIFT;
+   // Check if flags[0] is set
+    bool mem_lower_upper_specified = mb.flags & (1 << 0);
 
+    // Check if flags[6] is set
+    bool mmap_length_addr_specified = mb.flags & (1 << 6);
+
+    // If mem_lower and mem_upper are specified, create a temporary e820 entry array
+    e820ent *e820_array = nullptr;
+    size_t e820_entry_count = 0;
+
+    if (mem_lower_upper_specified) {
+        e820_entry_count = 2;
+        e820_array = new e820ent[e820_entry_count];
+        e820_array[0].addr = 0x100000; // 1MB
+        e820_array[0].size = (static_cast<u64>(mb.mem_lower) << 10) - e820_array[0].addr;
+        e820_array[0].type = 1; // Available RAM
+
+        e820_array[1].addr = 0x100000; // 1MB
+        e820_array[1].size = static_cast<u64>(mb.mem_upper) << 10;
+        e820_array[1].type = 1; // Available RAM
+    }
+    
+    if (!e820_array) {
+        for_each_e820_entry(e820_buffer, e820_size, /* existing lambda function */);
+    }
+
+    if (e820_array) {
+        delete[] e820_array;
+    }
     // copy to stack so we don't free it now
     auto omb = *osv_multiboot_info;
     auto mb = omb.mb;
@@ -118,6 +147,8 @@ void arch_setup_free_memory()
         memory::phys_mem_size += ent.size;
     });
     constexpr u64 initial_map = 1 << 30; // 1GB mapped by startup code
+
+ 
 
     u64 time;
     time = omb.tsc_init_hi;
